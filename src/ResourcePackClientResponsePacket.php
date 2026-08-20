@@ -1,23 +1,12 @@
 <?php
 
-/*
- * This file is part of BedrockProtocol.
- * Copyright (C) 2014-2022 PocketMine Team <https://github.com/pmmp/BedrockProtocol>
- *
- * BedrockProtocol is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- */
-
 declare(strict_types=1);
 
 namespace pocketmine\network\mcpe\protocol;
 
-use pmmp\encoding\Byte;
 use pmmp\encoding\ByteBufferReader;
 use pmmp\encoding\ByteBufferWriter;
-use pmmp\encoding\LE;
+use pmmp\encoding\VarInt;
 use pocketmine\network\mcpe\protocol\serializer\CommonTypes;
 use function count;
 
@@ -29,8 +18,10 @@ class ResourcePackClientResponsePacket extends DataPacket implements Serverbound
 	public const STATUS_HAVE_ALL_PACKS = 2;
 	public const STATUS_COMPLETED = 3;
 
+	private const RESPONSE_NAMES = ['cancel', 'downloading', 'downloadingfinished', 'resourcepackstackfinished'];
+
 	public int $status;
-	public string $response = "";
+	public string $response = '';
 	/** @var string[] */
 	public array $packIds = [];
 
@@ -38,18 +29,19 @@ class ResourcePackClientResponsePacket extends DataPacket implements Serverbound
 	 * @generate-create-func
 	 * @param string[] $packIds
 	 */
-	public static function create(int $status, array $packIds) : self{
+	public static function create(int $status, array $packIds = []) : self{
 		$result = new self;
 		$result->status = $status;
+		$result->response = self::RESPONSE_NAMES[$status] ?? '';
 		$result->packIds = $packIds;
 		return $result;
 	}
 
 	protected function decodePayload(ByteBufferReader $in) : void{
-		$this->status = LE::readUnsignedInt($in);
+		$this->status = VarInt::readUnsignedInt($in);
 		$this->response = CommonTypes::getString($in);
 		if($this->status === self::STATUS_SEND_PACKS){
-			$entryCount = LE::readUnsignedInt($in);
+			$entryCount = VarInt::readUnsignedInt($in);
 			$this->packIds = [];
 			while($entryCount-- > 0){
 				$this->packIds[] = CommonTypes::getString($in);
@@ -58,10 +50,10 @@ class ResourcePackClientResponsePacket extends DataPacket implements Serverbound
 	}
 
 	protected function encodePayload(ByteBufferWriter $out) : void{
-		LE::writeUnsignedInt($out, $this->status);
+		VarInt::writeUnsignedInt($out, $this->status);
 		CommonTypes::putString($out, $this->response);
 		if($this->status === self::STATUS_SEND_PACKS){
-			LE::writeUnsignedInt($out, count($this->packIds));
+			VarInt::writeUnsignedInt($out, count($this->packIds));
 			foreach($this->packIds as $id){
 				CommonTypes::putString($out, $id);
 			}

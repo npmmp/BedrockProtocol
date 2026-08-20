@@ -1,15 +1,5 @@
 <?php
 
-/*
- * This file is part of BedrockProtocol.
- * Copyright (C) 2014-2022 PocketMine Team <https://github.com/pmmp/BedrockProtocol>
- *
- * BedrockProtocol is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- */
-
 declare(strict_types=1);
 
 namespace pocketmine\network\mcpe\protocol\types\recipe;
@@ -27,8 +17,11 @@ final class RecipeUnlockingRequirement{
 	 * @phpstan-param list<RecipeIngredient>|null $unlockingIngredients
 	 */
 	public function __construct(
-		private ?array $unlockingIngredients
+		private int $context = 0,
+		private ?array $unlockingIngredients = null
 	){}
+
+	public function getContext() : int{ return $this->context; }
 
 	/**
 	 * @return RecipeIngredient[]|null
@@ -37,23 +30,25 @@ final class RecipeUnlockingRequirement{
 	public function getUnlockingIngredients() : ?array{ return $this->unlockingIngredients; }
 
 	public static function read(ByteBufferReader $in) : self{
-		//I don't know what the point of this structure is. It could easily have been a list<RecipeIngredient> instead.
-		//It's basically just an optional list, which could have been done by an empty list wherever it's not needed.
-		$unlockingContext = CommonTypes::getBool($in);
+		$context = VarInt::readSignedInt($in);
+		$present = $in->getBool();
 		$unlockingIngredients = null;
-		if(!$unlockingContext){
+		if($present){
 			$unlockingIngredients = [];
-			for($i = 0, $count = VarInt::readUnsignedInt($in); $i < $count; $i++){
+			$count = VarInt::readUnsignedInt($in);
+			for($i = 0; $i < $count; $i++){
 				$unlockingIngredients[] = CommonTypes::getRecipeIngredient($in);
 			}
 		}
 
-		return new self($unlockingIngredients);
+		return new self($context, $unlockingIngredients);
 	}
 
 	public function write(ByteBufferWriter $out) : void{
-		CommonTypes::putBool($out, $this->unlockingIngredients === null);
-		if($this->unlockingIngredients !== null){
+		VarInt::writeSignedInt($out, $this->context);
+		$present = $this->unlockingIngredients !== null;
+		$out->putBool($present);
+		if($present){
 			VarInt::writeUnsignedInt($out, count($this->unlockingIngredients));
 			foreach($this->unlockingIngredients as $ingredient){
 				CommonTypes::putRecipeIngredient($out, $ingredient);

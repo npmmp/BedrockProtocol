@@ -20,7 +20,7 @@ use pmmp\encoding\LE;
 use pmmp\encoding\VarInt;
 use pocketmine\math\Vector2;
 use pocketmine\math\Vector3;
-use pocketmine\network\mcpe\protocol\serializer\BitSet;
+use pocketmine\network\mcpe\protocol\serializer\InputFlags;
 use pocketmine\network\mcpe\protocol\serializer\CommonTypes;
 use pocketmine\network\mcpe\protocol\types\InputMode;
 use pocketmine\network\mcpe\protocol\types\InteractionMode;
@@ -44,7 +44,7 @@ class PlayerAuthInputPacket extends DataPacket implements ServerboundPacket{
 	private float $headYaw;
 	private float $moveVecX;
 	private float $moveVecZ;
-	private BitSet $inputFlags;
+	private InputFlags $inputFlags;
 	private int $inputMode;
 	private int $playMode;
 	private int $interactionMode;
@@ -72,7 +72,7 @@ class PlayerAuthInputPacket extends DataPacket implements ServerboundPacket{
 		float $headYaw,
 		float $moveVecX,
 		float $moveVecZ,
-		BitSet $inputFlags,
+		InputFlags $inputFlags,
 		int $inputMode,
 		int $playMode,
 		int $interactionMode,
@@ -114,7 +114,7 @@ class PlayerAuthInputPacket extends DataPacket implements ServerboundPacket{
 	}
 
 	/**
-	 * @param BitSet                   $inputFlags @see PlayerAuthInputFlags
+	 * @param InputFlags                   $inputFlags @see PlayerAuthInputFlags
 	 * @param int                      $inputMode @see InputMode
 	 * @param int                      $playMode @see PlayMode
 	 * @param int                      $interactionMode @see InteractionMode
@@ -127,7 +127,7 @@ class PlayerAuthInputPacket extends DataPacket implements ServerboundPacket{
 		float $headYaw,
 		float $moveVecX,
 		float $moveVecZ,
-		BitSet $inputFlags,
+		InputFlags $inputFlags,
 		int $inputMode,
 		int $playMode,
 		int $interactionMode,
@@ -143,14 +143,22 @@ class PlayerAuthInputPacket extends DataPacket implements ServerboundPacket{
 		Vector3 $cameraOrientation,
 		Vector2 $rawMove
 	) : self{
-		if($inputFlags->getLength() !== PlayerAuthInputFlags::NUMBER_OF_FLAGS){
-			throw new \InvalidArgumentException("Input flags must be " . PlayerAuthInputFlags::NUMBER_OF_FLAGS . " bits long");
+		if(count($inputFlags->getIds()) > PlayerAuthInputFlags::NUMBER_OF_FLAGS){
+			throw new \InvalidArgumentException("Input flags count exceeds " . PlayerAuthInputFlags::NUMBER_OF_FLAGS);
 		}
 
-		$inputFlags->set(PlayerAuthInputFlags::PERFORM_ITEM_STACK_REQUEST, $itemStackRequest !== null);
-		$inputFlags->set(PlayerAuthInputFlags::PERFORM_ITEM_INTERACTION, $itemInteractionData !== null);
-		$inputFlags->set(PlayerAuthInputFlags::PERFORM_BLOCK_ACTIONS, $blockActions !== null);
-		$inputFlags->set(PlayerAuthInputFlags::IN_CLIENT_PREDICTED_VEHICLE, $vehicleInfo !== null);
+		if($itemStackRequest !== null){
+			$inputFlags->set(PlayerAuthInputFlags::PERFORM_ITEM_STACK_REQUEST);
+		}
+		if($itemInteractionData !== null){
+			$inputFlags->set(PlayerAuthInputFlags::PERFORM_ITEM_INTERACTION);
+		}
+		if($blockActions !== null){
+			$inputFlags->set(PlayerAuthInputFlags::PERFORM_BLOCK_ACTIONS);
+		}
+		if($vehicleInfo !== null){
+			$inputFlags->set(PlayerAuthInputFlags::IN_CLIENT_PREDICTED_VEHICLE);
+		}
 
 		return self::internalCreate(
 			$position,
@@ -204,7 +212,7 @@ class PlayerAuthInputPacket extends DataPacket implements ServerboundPacket{
 	/**
 	 * @see PlayerAuthInputFlags
 	 */
-	public function getInputFlags() : BitSet{
+	public function getInputFlags() : InputFlags{
 		return $this->inputFlags;
 	}
 
@@ -271,20 +279,20 @@ class PlayerAuthInputPacket extends DataPacket implements ServerboundPacket{
 		$this->moveVecX = LE::readFloat($in);
 		$this->moveVecZ = LE::readFloat($in);
 		$this->headYaw = LE::readFloat($in);
-		$this->inputFlags = BitSet::read($in, PlayerAuthInputFlags::NUMBER_OF_FLAGS);
+		$this->inputFlags = InputFlags::read($in, PlayerAuthInputFlags::NUMBER_OF_FLAGS);
 		$this->inputMode = VarInt::readUnsignedInt($in);
 		$this->playMode = VarInt::readUnsignedInt($in);
 		$this->interactionMode = VarInt::readUnsignedInt($in);
 		$this->interactRotation = CommonTypes::getVector2($in);
 		$this->tick = VarInt::readUnsignedLong($in);
 		$this->delta = CommonTypes::getVector3($in);
-		if($this->inputFlags->get(PlayerAuthInputFlags::PERFORM_ITEM_INTERACTION)){
+		if($this->inputFlags->load(PlayerAuthInputFlags::PERFORM_ITEM_INTERACTION)){
 			$this->itemInteractionData = ItemInteractionData::read($in);
 		}
-		if($this->inputFlags->get(PlayerAuthInputFlags::PERFORM_ITEM_STACK_REQUEST)){
+		if($this->inputFlags->load(PlayerAuthInputFlags::PERFORM_ITEM_STACK_REQUEST)){
 			$this->itemStackRequest = ItemStackRequest::read($in);
 		}
-		if($this->inputFlags->get(PlayerAuthInputFlags::PERFORM_BLOCK_ACTIONS)){
+		if($this->inputFlags->load(PlayerAuthInputFlags::PERFORM_BLOCK_ACTIONS)){
 			$this->blockActions = [];
 			$max = VarInt::readSignedInt($in);
 			for($i = 0; $i < $max; ++$i){
@@ -296,7 +304,7 @@ class PlayerAuthInputPacket extends DataPacket implements ServerboundPacket{
 				};
 			}
 		}
-		if($this->inputFlags->get(PlayerAuthInputFlags::IN_CLIENT_PREDICTED_VEHICLE)){
+		if($this->inputFlags->load(PlayerAuthInputFlags::IN_CLIENT_PREDICTED_VEHICLE)){
 			$this->vehicleInfo = PlayerAuthInputVehicleInfo::read($in);
 		}
 		$this->analogMoveVecX = LE::readFloat($in);

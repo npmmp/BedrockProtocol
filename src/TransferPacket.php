@@ -41,12 +41,18 @@ class TransferPacket extends DataPacket implements ClientboundPacket{
 		$this->address = CommonTypes::getString($in);
 		$this->port = LE::readUnsignedShort($in);
 		$this->reloadWorld = CommonTypes::getBool($in);
+		$hasGatheringInfo = $in->getBool();
+		if($hasGatheringInfo){
+			// GatheringJoinInfo - skip unknown fields
+			CommonTypes::getString($in);
+		}
 	}
 
 	protected function encodePayload(ByteBufferWriter $out) : void{
 		CommonTypes::putString($out, $this->address);
 		LE::writeUnsignedShort($out, $this->port);
 		CommonTypes::putBool($out, $this->reloadWorld);
+		$out->putBool(false);
 	}
 
 	public function handle(PacketHandlerInterface $handler) : bool{

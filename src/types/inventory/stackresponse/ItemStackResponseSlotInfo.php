@@ -1,15 +1,5 @@
 <?php
 
-/*
- * This file is part of BedrockProtocol.
- * Copyright (C) 2014-2022 PocketMine Team <https://github.com/pmmp/BedrockProtocol>
- *
- * BedrockProtocol is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- */
-
 declare(strict_types=1);
 
 namespace pocketmine\network\mcpe\protocol\types\inventory\stackresponse;
@@ -49,7 +39,16 @@ final class ItemStackResponseSlotInfo{
 		$slot = Byte::readUnsigned($in);
 		$hotbarSlot = Byte::readUnsigned($in);
 		$count = Byte::readUnsigned($in);
-		$itemStackId = CommonTypes::readServerItemStackId($in);
+
+		$itemStackId = 0;
+		$hasOuter = $in->getBool();
+		if($hasOuter){
+			$hasInner = $in->getBool();
+			if($hasInner){
+				$itemStackId = VarInt::readSignedInt($in);
+			}
+		}
+
 		$customName = CommonTypes::getString($in);
 		$filteredCustomName = CommonTypes::getString($in);
 		$durabilityCorrection = VarInt::readSignedInt($in);
@@ -60,7 +59,15 @@ final class ItemStackResponseSlotInfo{
 		Byte::writeUnsigned($out, $this->slot);
 		Byte::writeUnsigned($out, $this->hotbarSlot);
 		Byte::writeUnsigned($out, $this->count);
-		CommonTypes::writeServerItemStackId($out, $this->itemStackId);
+
+		if($this->itemStackId > 0){
+			$out->putBool(true);
+			$out->putBool(true);
+			VarInt::writeSignedInt($out, $this->itemStackId);
+		}else{
+			$out->putBool(false);
+		}
+
 		CommonTypes::putString($out, $this->customName);
 		CommonTypes::putString($out, $this->filteredCustomName);
 		VarInt::writeSignedInt($out, $this->durabilityCorrection);

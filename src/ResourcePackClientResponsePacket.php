@@ -24,12 +24,13 @@ use function count;
 class ResourcePackClientResponsePacket extends DataPacket implements ServerboundPacket{
 	public const NETWORK_ID = ProtocolInfo::RESOURCE_PACK_CLIENT_RESPONSE_PACKET;
 
-	public const STATUS_REFUSED = 1;
-	public const STATUS_SEND_PACKS = 2;
-	public const STATUS_HAVE_ALL_PACKS = 3;
-	public const STATUS_COMPLETED = 4;
+	public const STATUS_REFUSED = 0;
+	public const STATUS_SEND_PACKS = 1;
+	public const STATUS_HAVE_ALL_PACKS = 2;
+	public const STATUS_COMPLETED = 3;
 
 	public int $status;
+	public string $response = "";
 	/** @var string[] */
 	public array $packIds = [];
 
@@ -45,19 +46,25 @@ class ResourcePackClientResponsePacket extends DataPacket implements Serverbound
 	}
 
 	protected function decodePayload(ByteBufferReader $in) : void{
-		$this->status = Byte::readUnsigned($in);
-		$entryCount = LE::readUnsignedShort($in);
-		$this->packIds = [];
-		while($entryCount-- > 0){
-			$this->packIds[] = CommonTypes::getString($in);
+		$this->status = LE::readUnsignedInt($in);
+		$this->response = CommonTypes::getString($in);
+		if($this->status === self::STATUS_SEND_PACKS){
+			$entryCount = LE::readUnsignedInt($in);
+			$this->packIds = [];
+			while($entryCount-- > 0){
+				$this->packIds[] = CommonTypes::getString($in);
+			}
 		}
 	}
 
 	protected function encodePayload(ByteBufferWriter $out) : void{
-		Byte::writeUnsigned($out, $this->status);
-		LE::writeUnsignedShort($out, count($this->packIds));
-		foreach($this->packIds as $id){
-			CommonTypes::putString($out, $id);
+		LE::writeUnsignedInt($out, $this->status);
+		CommonTypes::putString($out, $this->response);
+		if($this->status === self::STATUS_SEND_PACKS){
+			LE::writeUnsignedInt($out, count($this->packIds));
+			foreach($this->packIds as $id){
+				CommonTypes::putString($out, $id);
+			}
 		}
 	}
 

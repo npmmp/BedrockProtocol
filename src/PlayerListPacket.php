@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace pocketmine\network\mcpe\protocol;
 
+use pmmp\encoding\Byte;
 use pmmp\encoding\ByteBufferReader;
 use pmmp\encoding\ByteBufferWriter;
 use pmmp\encoding\LE;
@@ -11,7 +12,6 @@ use pmmp\encoding\VarInt;
 use pocketmine\color\Color;
 use pocketmine\network\mcpe\protocol\serializer\CommonTypes;
 use pocketmine\network\mcpe\protocol\types\PlayerListEntry;
-use Ramsey\Uuid\Uuid;
 use function count;
 
 class PlayerListPacket extends DataPacket implements ClientboundPacket{
@@ -20,7 +20,6 @@ class PlayerListPacket extends DataPacket implements ClientboundPacket{
 	public const TYPE_ADD = 0;
 	public const TYPE_REMOVE = 1;
 
-	public int $type;
 	/** @var PlayerListEntry[] */
 	public array $entries = [];
 
@@ -29,7 +28,9 @@ class PlayerListPacket extends DataPacket implements ClientboundPacket{
 	 */
 	public static function add(array $entries) : self{
 		$result = new self;
-		$result->type = self::TYPE_ADD;
+		foreach($entries as $entry){
+			$entry->actionType = self::TYPE_ADD;
+		}
 		$result->entries = $entries;
 		return $result;
 	}
@@ -39,7 +40,9 @@ class PlayerListPacket extends DataPacket implements ClientboundPacket{
 	 */
 	public static function remove(array $entries) : self{
 		$result = new self;
-		$result->type = self::TYPE_REMOVE;
+		foreach($entries as $entry){
+			$entry->actionType = self::TYPE_REMOVE;
+		}
 		$result->entries = $entries;
 		return $result;
 	}
@@ -49,14 +52,18 @@ class PlayerListPacket extends DataPacket implements ClientboundPacket{
 		$this->entries = [];
 		for($i = 0; $i < $count; ++$i){
 			$entry = new PlayerListEntry();
+
+			$variant = VarInt::readUnsignedInt($in);
+			$legacyAction = Byte::readUnsigned($in);
+			$entry->actionType = ($variant === 1) ? self::TYPE_ADD : self::TYPE_REMOVE;
+
 			$entry->uuid = CommonTypes::getUUID($in);
 
-			if($entry->uuid->equals(Uuid::fromString(Uuid::NIL))){
+			if($entry->actionType === self::TYPE_REMOVE){
 				$this->entries[] = $entry;
 				continue;
 			}
 
-			$this->type = self::TYPE_ADD;
 			$entry->actorUniqueId = CommonTypes::getActorUniqueId($in);
 			$entry->username = CommonTypes::getString($in);
 			$entry->xboxUserId = CommonTypes::getString($in);
@@ -70,31 +77,31 @@ class PlayerListPacket extends DataPacket implements ClientboundPacket{
 			$entry->skinData->setVerified(CommonTypes::getBool($in));
 			$this->entries[] = $entry;
 		}
-
-		if(count($this->entries) === 0 || $this->type !== self::TYPE_ADD){
-			$this->type = self::TYPE_REMOVE;
-		}
 	}
 
 	protected function encodePayload(ByteBufferWriter $out) : void{
 		VarInt::writeUnsignedInt($out, count($this->entries));
 		foreach($this->entries as $entry){
-			if($this->type === self::TYPE_ADD){
-				CommonTypes::putUUID($out, $entry->uuid);
-				CommonTypes::putActorUniqueId($out, $entry->actorUniqueId);
-				CommonTypes::putString($out, $entry->username);
-				CommonTypes::putString($out, $entry->xboxUserId);
-				CommonTypes::putString($out, $entry->platformChatId);
-				LE::writeSignedInt($out, $entry->buildPlatform);
-				CommonTypes::putSkin($out, $entry->skinData);
-				CommonTypes::putBool($out, $entry->isTeacher);
-				CommonTypes::putBool($out, $entry->isHost);
-				CommonTypes::putBool($out, $entry->isSubClient);
-				LE::writeUnsignedInt($out, ($entry->color ?? new Color(255, 255, 255))->toARGB());
-				CommonTypes::putBool($out, $entry->skinData->isVerified());
-			}else{
-				CommonTypes::putUUID($out, $entry->uuid);
+			$variant = ($entry->actionType === self::TYPE_ADD) ? 1 : 0;
+			VarInt::writeUnsignedInt($out, $variant);
+			Byte::writeUnsigned($out, $entry->actionType);
+			CommonTypes::putUUID($out, $entry->uuid);
+
+			if($entry->actionType === self::TYPE_REMOVE){
+				continue;
 			}
+
+			CommonTypes::putActorUniqueId($out, $entry->actorUniqueId);
+			CommonTypes::putString($out, $entry->username);
+			CommonTypes::putString($out, $entry->xboxUserId);
+			CommonTypes::putString($out, $entry->platformChatId);
+			LE::writeSignedInt($out, $entry->buildPlatform);
+			CommonTypes::putSkin($out, $entry->skinData);
+			CommonTypes::putBool($out, $entry->isTeacher);
+			CommonTypes::putBool($out, $entry->isHost);
+			CommonTypes::putBool($out, $entry->isSubClient);
+			LE::writeUnsignedInt($out, ($entry->color ?? new Color(255, 255, 255))->toARGB());
+			CommonTypes::putBool($out, $entry->skinData->isVerified());
 		}
 	}
 

@@ -21,6 +21,7 @@ use Ramsey\Uuid\UuidInterface;
 class PlayerListEntry{
 
 	public UuidInterface $uuid;
+	public int $actionType = 0;
 	public int $actorUniqueId;
 	public string $username;
 	public SkinData $skinData;

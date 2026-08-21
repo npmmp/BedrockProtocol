@@ -31,7 +31,7 @@ final class RecipeUnlockingRequirement{
 
 	public static function read(ByteBufferReader $in) : self{
 		$context = VarInt::readSignedInt($in);
-		$present = $in->getBool();
+		$present = CommonTypes::getBool($in);
 		$unlockingIngredients = null;
 		if($present){
 			$unlockingIngredients = [];
@@ -47,7 +47,7 @@ final class RecipeUnlockingRequirement{
 	public function write(ByteBufferWriter $out) : void{
 		VarInt::writeSignedInt($out, $this->context);
 		$present = $this->unlockingIngredients !== null;
-		$out->putBool($present);
+		CommonTypes::putBool($out, $present);
 		if($present){
 			VarInt::writeUnsignedInt($out, count($this->unlockingIngredients));
 			foreach($this->unlockingIngredients as $ingredient){

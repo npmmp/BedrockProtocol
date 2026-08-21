@@ -377,25 +377,52 @@ final class CommonTypes{
 
 	/** @throws DataDecodeException */
 	public static function getRecipeIngredient(ByteBufferReader $in) : RecipeIngredient{
-		$descriptorType = Byte::readUnsigned($in);
-		$descriptor = match($descriptorType){
-			ItemDescriptorType::INT_ID_META => IntIdMetaItemDescriptor::read($in),
-			ItemDescriptorType::STRING_ID_META => StringIdMetaItemDescriptor::read($in),
-			ItemDescriptorType::TAG => TagItemDescriptor::read($in),
-			ItemDescriptorType::MOLANG => MolangItemDescriptor::read($in),
-			ItemDescriptorType::COMPLEX_ALIAS => ComplexAliasItemDescriptor::read($in),
-			default => null
+		$variant = VarInt::readUnsignedInt($in);
+
+		if($variant === 0){
+			// Invalid descriptor
+			$count = VarInt::readSignedInt($in);
+			return new RecipeIngredient(null, $count);
+		}
+
+		if($variant !== 1){
+			throw new \RuntimeException("Unknown item descriptor variant $variant");
+		}
+
+		// Default variant - read type name string
+		$typeName = self::getString($in);
+
+		$descriptor = match($typeName){
+			'name' => IntIdMetaItemDescriptor::read($in),
+			'molang' => MolangItemDescriptor::read($in),
+			'item_tag' => TagItemDescriptor::read($in),
+			default => throw new \RuntimeException("Unknown item descriptor type: $typeName"),
 		};
+
 		$count = VarInt::readSignedInt($in);
 
 		return new RecipeIngredient($descriptor, $count);
 	}
 
 	public static function putRecipeIngredient(ByteBufferWriter $out, RecipeIngredient $ingredient) : void{
-		$type = $ingredient->getDescriptor();
+		$descriptor = $ingredient->getDescriptor();
 
-		Byte::writeUnsigned($out, $type?->getTypeId() ?? 0);
-		$type?->write($out);
+		if($descriptor === null){
+			VarInt::writeUnsignedInt($out, 0); // Invalid
+			VarInt::writeSignedInt($out, $ingredient->getCount());
+			return;
+		}
+
+		VarInt::writeUnsignedInt($out, 1); // Default variant
+
+		$typeName = match($descriptor::class){
+			IntIdMetaItemDescriptor::class => 'name',
+			MolangItemDescriptor::class => 'molang',
+			TagItemDescriptor::class => 'item_tag',
+			default => throw new \RuntimeException("Unknown descriptor type: " . get_class($descriptor)),
+		};
+		self::putString($out, $typeName);
+		$descriptor->write($out);
 
 		VarInt::writeSignedInt($out, $ingredient->getCount());
 	}

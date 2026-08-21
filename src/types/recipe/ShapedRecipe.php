@@ -26,9 +26,9 @@ final class ShapedRecipe extends RecipeWithTypeId{
 	private string $blockName;
 
 	/**
-	 * @param RecipeIngredient[][] $input
+	 * @param RecipeIngredient[] $input
 	 * @param ItemStack[]          $output
-	 * @phpstan-param list<list<RecipeIngredient>> $input
+	 * @phpstan-param list<RecipeIngredient> $input
 	 * @phpstan-param list<ItemStack> $output
 	 */
 	public function __construct(
@@ -44,19 +44,6 @@ final class ShapedRecipe extends RecipeWithTypeId{
 		private int $recipeNetId
 	){
 		parent::__construct($typeId);
-		$rows = count($input);
-		if($rows < 1 or $rows > 3){
-			throw new \InvalidArgumentException("Expected 1, 2 or 3 input rows");
-		}
-		$columns = null;
-		foreach($input as $rowNumber => $row){
-			if($columns === null){
-				$columns = count($row);
-			}elseif(count($row) !== $columns){
-				throw new \InvalidArgumentException("Expected each row to be $columns columns, but have " . count($row) . " in row $rowNumber");
-			}
-		}
-		$this->blockName = $blockType;
 	}
 
 	public function getRecipeId() : string{
@@ -112,10 +99,9 @@ final class ShapedRecipe extends RecipeWithTypeId{
 		$width = VarInt::readSignedInt($in);
 		$height = VarInt::readSignedInt($in);
 		$input = [];
-		for($row = 0; $row < $height; ++$row){
-			for($column = 0; $column < $width; ++$column){
-				$input[$row][$column] = CommonTypes::getRecipeIngredient($in);
-			}
+		$inputCount = VarInt::readUnsignedInt($in);
+		for($i = 0; $i < $inputCount; ++$i){
+			$input[] = CommonTypes::getRecipeIngredient($in);
 		}
 
 		$output = [];
@@ -137,10 +123,9 @@ final class ShapedRecipe extends RecipeWithTypeId{
 		CommonTypes::putString($out, $this->recipeId);
 		VarInt::writeSignedInt($out, $this->getWidth());
 		VarInt::writeSignedInt($out, $this->getHeight());
-		foreach($this->input as $row){
-			foreach($row as $ingredient){
-				CommonTypes::putRecipeIngredient($out, $ingredient);
-			}
+		VarInt::writeUnsignedInt($out, count($this->input));
+		foreach($this->input as $ingredient){
+			CommonTypes::putRecipeIngredient($out, $ingredient);
 		}
 
 		VarInt::writeUnsignedInt($out, count($this->output));

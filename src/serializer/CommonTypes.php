@@ -22,6 +22,7 @@ use pmmp\encoding\LE;
 use pmmp\encoding\VarInt;
 use pocketmine\math\Vector2;
 use pocketmine\math\Vector3;
+use pocketmine\color\Color;
 use pocketmine\nbt\NbtDataException;
 use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\nbt\TreeRoot;
@@ -111,13 +112,13 @@ final class CommonTypes{
 		$skinPlayFabId = self::getString($in);
 		$skinResourcePatch = self::getString($in);
 		$skinData = self::getSkinImage($in);
-		$animationCount = LE::readUnsignedInt($in);
+		$animationCount = VarInt::readUnsignedInt($in);
 		$animations = [];
 		for($i = 0; $i < $animationCount; ++$i){
 			$skinImage = self::getSkinImage($in);
-			$animationType = LE::readUnsignedInt($in);
+			$animationType = VarInt::readUnsignedInt($in);
 			$animationFrames = LE::readFloat($in);
-			$expressionType = LE::readUnsignedInt($in);
+			$expressionType = VarInt::readUnsignedInt($in);
 			$animations[] = new SkinAnimation($skinImage, $animationType, $animationFrames, $expressionType);
 		}
 		$capeData = self::getSkinImage($in);
@@ -126,26 +127,25 @@ final class CommonTypes{
 		$animationData = self::getString($in);
 		$capeId = self::getString($in);
 		$fullSkinId = self::getString($in);
-		$armSize = self::getString($in);
-		$skinColor = self::getString($in);
-		$personaPieceCount = LE::readUnsignedInt($in);
+		$armSize = Byte::readUnsigned($in);
+		$skinColor = Color::fromARGB(LE::readUnsignedInt($in));
+		$personaPieceCount = VarInt::readUnsignedInt($in);
 		$personaPieces = [];
 		for($i = 0; $i < $personaPieceCount; ++$i){
 			$pieceId = self::getString($in);
-			$pieceType = self::getString($in);
-			$packId = self::getString($in);
+			$pieceType = VarInt::readUnsignedInt($in);
+			$packId = self::getUUID($in);
 			$isDefaultPiece = self::getBool($in);
 			$productId = self::getString($in);
 			$personaPieces[] = new PersonaSkinPiece($pieceId, $pieceType, $packId, $isDefaultPiece, $productId);
 		}
-		$pieceTintColorCount = LE::readUnsignedInt($in);
+		$pieceTintColorCount = VarInt::readUnsignedInt($in);
 		$pieceTintColors = [];
 		for($i = 0; $i < $pieceTintColorCount; ++$i){
 			$pieceType = self::getString($in);
-			$colorCount = LE::readUnsignedInt($in);
 			$colors = [];
-			for($j = 0; $j < $colorCount; ++$j){
-				$colors[] = self::getString($in);
+			for($j = 0; $j < 4; ++$j){
+				$colors[] = Color::fromARGB(LE::readUnsignedInt($in));
 			}
 			$pieceTintColors[] = new PersonaPieceTintColor(
 				$pieceType,
@@ -158,6 +158,9 @@ final class CommonTypes{
 		$capeOnClassic = self::getBool($in);
 		$isPrimaryUser = self::getBool($in);
 		$override = self::getBool($in);
+		$trustedStr = self::getString($in);
+		$isVerified = strcasecmp($trustedStr, "true") === 0;
+		$profileHash = self::getString($in);
 
 		return new SkinData(
 			$skinId,
@@ -175,12 +178,13 @@ final class CommonTypes{
 			$skinColor,
 			$personaPieces,
 			$pieceTintColors,
-			true,
+			$isVerified,
 			$premium,
 			$persona,
 			$capeOnClassic,
 			$isPrimaryUser,
 			$override,
+			$profileHash,
 		);
 	}
 
@@ -189,12 +193,12 @@ final class CommonTypes{
 		self::putString($out, $skin->getPlayFabId());
 		self::putString($out, $skin->getResourcePatch());
 		self::putSkinImage($out, $skin->getSkinImage());
-		LE::writeUnsignedInt($out, count($skin->getAnimations()));
+		VarInt::writeUnsignedInt($out, count($skin->getAnimations()));
 		foreach($skin->getAnimations() as $animation){
 			self::putSkinImage($out, $animation->getImage());
-			LE::writeUnsignedInt($out, $animation->getType());
+			VarInt::writeUnsignedInt($out, $animation->getType());
 			LE::writeFloat($out, $animation->getFrames());
-			LE::writeUnsignedInt($out, $animation->getExpressionType());
+			VarInt::writeUnsignedInt($out, $animation->getExpressionType());
 		}
 		self::putSkinImage($out, $skin->getCapeImage());
 		self::putString($out, $skin->getGeometryData());
@@ -202,22 +206,23 @@ final class CommonTypes{
 		self::putString($out, $skin->getAnimationData());
 		self::putString($out, $skin->getCapeId());
 		self::putString($out, $skin->getFullSkinId());
-		self::putString($out, $skin->getArmSize());
-		self::putString($out, $skin->getSkinColor());
-		LE::writeUnsignedInt($out, count($skin->getPersonaPieces()));
+		Byte::writeUnsigned($out, $skin->getArmSize());
+		LE::writeUnsignedInt($out, $skin->getSkinColor()->toARGB());
+		VarInt::writeUnsignedInt($out, count($skin->getPersonaPieces()));
 		foreach($skin->getPersonaPieces() as $piece){
 			self::putString($out, $piece->getPieceId());
-			self::putString($out, $piece->getPieceType());
-			self::putString($out, $piece->getPackId());
+			VarInt::writeUnsignedInt($out, $piece->getPieceType());
+			self::putUUID($out, $piece->getPackId());
 			self::putBool($out, $piece->isDefaultPiece());
 			self::putString($out, $piece->getProductId());
 		}
-		LE::writeUnsignedInt($out, count($skin->getPieceTintColors()));
+		VarInt::writeUnsignedInt($out, count($skin->getPieceTintColors()));
 		foreach($skin->getPieceTintColors() as $tint){
 			self::putString($out, $tint->getPieceType());
-			LE::writeUnsignedInt($out, count($tint->getColors()));
-			foreach($tint->getColors() as $color){
-				self::putString($out, $color);
+			$colors = $tint->getColors();
+			for($j = 0; $j < 4; ++$j){
+				$color = $colors[$j] ?? new Color(0, 0, 0, 0);
+				LE::writeUnsignedInt($out, $color->toARGB());
 			}
 		}
 		self::putBool($out, $skin->isPremium());
@@ -225,6 +230,8 @@ final class CommonTypes{
 		self::putBool($out, $skin->isPersonaCapeOnClassic());
 		self::putBool($out, $skin->isPrimaryUser());
 		self::putBool($out, $skin->isOverride());
+		self::putString($out, $skin->isVerified() ? "true" : "false");
+		self::putString($out, $skin->getProfileHash());
 	}
 
 	/** @throws DataDecodeException */

@@ -1,18 +1,10 @@
 <?php
 
-/*
- * This file is part of BedrockProtocol.
- * Copyright (C) 2014-2022 PocketMine Team <https://github.com/pmmp/BedrockProtocol>
- *
- * BedrockProtocol is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- */
-
 declare(strict_types=1);
 
 namespace pocketmine\network\mcpe\protocol\types\skin;
+
+use Ramsey\Uuid\UuidInterface;
 
 final class PersonaSkinPiece{
 
@@ -29,8 +21,8 @@ final class PersonaSkinPiece{
 
 	public function __construct(
 		private string $pieceId,
-		private string $pieceType,
-		private string $packId,
+		private int $pieceType,
+		private UuidInterface $packId,
 		private bool $isDefaultPiece,
 		private string $productId
 	){}
@@ -39,11 +31,11 @@ final class PersonaSkinPiece{
 		return $this->pieceId;
 	}
 
-	public function getPieceType() : string{
+	public function getPieceType() : int{
 		return $this->pieceType;
 	}
 
-	public function getPackId() : string{
+	public function getPackId() : UuidInterface{
 		return $this->packId;
 	}
 

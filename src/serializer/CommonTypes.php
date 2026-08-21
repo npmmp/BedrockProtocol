@@ -258,7 +258,7 @@ final class CommonTypes{
 	 * @throws DataDecodeException
 	 */
 	private static function getItemStackHeader(ByteBufferReader $in) : array{
-		$id = VarInt::readSignedInt($in);
+		$id = LE::readSignedShort($in);
 		if($id === 0){
 			return [0, 0, 0];
 		}
@@ -271,11 +271,11 @@ final class CommonTypes{
 
 	private static function putItemStackHeader(ByteBufferWriter $out, ItemStack $itemStack) : bool{
 		if($itemStack->getId() === 0){
-			VarInt::writeSignedInt($out, 0);
+			LE::writeSignedShort($out, 0);
 			return false;
 		}
 
-		VarInt::writeSignedInt($out, $itemStack->getId());
+		LE::writeSignedShort($out, $itemStack->getId());
 		LE::writeUnsignedShort($out, $itemStack->getCount());
 		VarInt::writeUnsignedInt($out, $itemStack->getMeta());
 
@@ -302,8 +302,18 @@ final class CommonTypes{
 	public static function getItemStackWithoutStackId(ByteBufferReader $in) : ItemStack{
 		[$id, $count, $meta] = self::getItemStackHeader($in);
 
-		return $id !== 0 ? self::getItemStackFooter($in, $id, $meta, $count) : ItemStack::null();
+		if($id === 0){
+			return ItemStack::null();
+		}
 
+		// Skip hasNetID and StackNetworkID (ItemInstance format)
+		$hasNetID = self::getBool($in);
+		if($hasNetID){
+			$variant = VarInt::readUnsignedInt($in);
+			$stackId = VarInt::readSignedInt($in);
+		}
+
+		return self::getItemStackFooter($in, $id, $meta, $count);
 	}
 
 	public static function putItemStackWithoutStackId(ByteBufferWriter $out, ItemStack $itemStack) : void{
